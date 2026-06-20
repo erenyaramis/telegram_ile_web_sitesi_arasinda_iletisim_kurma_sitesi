@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Bot Web Kontrol Paneli</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #f0f2f5;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; color: #333;
+        }
+        .chat-container {
+            background-color: #ffffff; width: 100%; max-width: 480px; height: 95vh;
+            border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column; overflow: hidden; position: relative;
+        }
+        .chat-header {
+            background-color: #0088cc; color: white; padding: 15px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header-left { display: flex; flex-direction: column; gap: 4px; }
+        .chat-header h2 { font-size: 18px; font-weight: 600; }
+        .status-container { display: flex; align-items: center; gap: 6px; font-size: 13px; opacity: 0.9; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background-color: #ffeb3b; }
+        .status-dot.online { background-color: #4caf50; }
+        .status-dot.offline { background-color: #f44336; }
+        
+        .ayarlar-butonu { background: none; border: none; color: white; font-size: 24px; cursor: pointer; transition: transform 0.2s; }
+        .ayarlar-butonu:hover { transform: rotate(90deg); }
+
+        /* SOHBET EKRANI */
+        #chatView { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
+        .chat-box {
+            flex-grow: 1; padding: 20px; overflow-y: auto; background-color: #f4f7f6;
+            background-image: radial-gradient(#dfdfdf 1px, transparent 0);
+            background-size: 12px 12px; display: flex; flex-direction: column; gap: 12px;
+        }
+        .mesaj-wrapper { display: flex; flex-direction: column; max-width: 85%; }
+        .mesaj-wrapper.gelen { align-self: flex-start; }
+        .mesaj-wrapper.giden { align-self: flex-end; }
+        .isim { font-size: 11px; color: #777; margin-bottom: 3px; margin-left: 4px; font-weight: bold; }
+        .mesaj-wrapper.giden .isim { text-align: right; margin-right: 4px; }
+        .mesaj { padding: 10px 14px; border-radius: 14px; font-size: 14.5px; line-height: 1.4; word-wrap: break-word; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .gelen .mesaj { background-color: #ffffff; color: #1c1e21; border-top-left-radius: 2px; }
+        .giden .mesaj { background-color: #e1f5fe; color: #0d47a1; border-top-right-radius: 2px; }
+
+        /* MEDYA STİLLERİ */
+        audio { height: 40px; width: 100%; outline: none; border-radius: 20px; margin-bottom: 5px; }
+        .medya-onizleme { max-width: 100%; border-radius: 8px; margin-bottom: 5px; display: block; }
+        .medya-linki { font-size: 12px; color: #0088cc; text-decoration: none; display: inline-block; font-weight: bold; margin-top: 4px; }
+        .medya-linki:hover { text-decoration: underline; }
+
+        /* ALT GİRDİ ALANI */
+        .input-area { padding: 15px; background-color: #ffffff; border-top: 1px solid #e4e6eb; display: flex; flex-direction: column; gap: 10px; }
+        .text-row { display: flex; gap: 8px; align-items: center; }
+        input[type="text"] { flex-grow: 1; padding: 12px; font-size: 14px; border: 1px solid #ccd0d5; border-radius: 20px; outline: none; }
+        input[type="text"]:focus { border-color: #0088cc; }
+        button { border: none; border-radius: 20px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.2s; }
+        .btn-gonder { background-color: #0088cc; color: white; padding: 0 20px; height: 42px; }
+        .btn-gonder:hover { background-color: #006699; }
+        .btn-ekle { background-color: #e4e6eb; color: #333; width: 42px; height: 42px; border-radius: 50%; font-size: 18px; display: flex; justify-content: center; align-items: center; }
+        .btn-ekle:hover { background-color: #d8dadf; }
+        .btn-ses { background-color: #ff9800; color: white; padding: 12px; width: 100%; border-radius: 8px; gap: 8px; }
+        .btn-ses:hover { background-color: #e68a00; }
+        .btn-ses.kaydediyor { background-color: #e53935; animation: nefesAl 1.5s infinite; }
+
+        /* AYARLAR EKRANI */
+        #settingsView { display: none; padding: 25px; flex-grow: 1; background-color: #fff; flex-direction: column; gap: 20px; overflow-y: auto; }
+        .ayar-grubu { display: flex; flex-direction: column; gap: 8px; }
+        .ayar-grubu label { font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 5px; }
+        .ayar-grubu input { padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; width: 100%; }
+        .btn-kaydet { background-color: #4caf50; color: white; padding: 15px; border-radius: 8px; font-size: 16px; margin-top: 10px; }
+        .btn-kaydet:hover { background-color: #45a049; }
+
+        /* BİLGİ (TOOLTIP) İKONU VE KUTUSU */
+        .info-icon {
+            display: inline-flex; justify-content: center; align-items: center;
+            background-color: #ff9800; color: white; width: 18px; height: 18px;
+            border-radius: 50%; font-size: 12px; cursor: help; position: relative;
+        }
+        .info-icon:hover::after {
+            content: attr(data-tooltip); position: absolute; top: 25px; left: -10px;
+            background-color: #333; color: #fff; padding: 10px; border-radius: 6px;
+            width: 280px; font-size: 12px; font-weight: normal; white-space: normal;
+            z-index: 100; box-shadow: 0 4px 8px rgba(0,0,0,0.2); pointer-events: none;
+        }
+
+        @keyframes nefesAl { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="header-left">
+                <h2>Telegram Bot Paneli</h2>
+                <div class="status-container">
+                    <div id="statusDot" class="status-dot offline"></div>
+                    <span id="statusText">Ayar Bekleniyor...</span>
+                </div>
+            </div>
+            <button class="ayarlar-butonu" onclick="ayarlariAc()" title="Ayarlar">⚙️</button>
+        </div>
+        
+        <div id="settingsView">
+            <h3 style="color: #0088cc; margin-bottom: 10px;">Bağlantı Ayarları</h3>
+            
+            <div class="ayar-grubu">
+                <label>
+                    Bot API Token
+                    <span class="info-icon" data-tooltip="Telegram uygulamasında 'BotFather' araması yapın. /newbot komutu ile yeni bir bot oluşturun. Size 'Use this token to access the HTTP API:' yazan kısmın altındaki uzun şifreyi (Örn: 12345:ABCde...) verecektir. O şifreyi buraya yapıştırın.">!</span>
+                </label>
+                <input type="text" id="tokenInput" placeholder="Örn: 8619228108:AAHVMbDbI...">
+            </div>
+
+            <div class="ayar-grubu">
+                <label>
+                    Kullanıcı Chat ID
+                    <span class="info-icon" data-tooltip="Kendi Telegram hesabınızın kimlik numarasıdır. Telegram'da arama kısmına '@userinfobot' yazın ve başlatın. Size 'Id: 7846404116' gibi bir numara verecektir. Bu numarayı buraya yazın ki mesajlar direkt size gelsin.">!</span>
+                </label>
+                <input type="text" id="chatIdInput" placeholder="Örn: 7846404116">
+            </div>
+
+            <button class="btn-kaydet" onclick="ayarlariKaydet()">Kaydet ve Bağlan</button>
+        </div>
+
+        <div id="chatView">
+            <div id="chatBox" class="chat-box"></div>
+
+            <div class="input-area">
+                <div class="text-row">
+                    <button class="btn-ekle" onclick="document.getElementById('fileInput').click()" title="Dosya Ekle">📎</button>
+                    <input type="file" id="fileInput" style="display: none;" onchange="dosyaSecVeGonder()">
+                    <input type="text" id="messageInput" placeholder="Mesajınızı yazın..." onkeypress="enterIleGonder(event)">
+                    <button class="btn-gonder" onclick="telegramaGonder()">Gönder</button>
+                </div>
+                <button class="btn-ses" id="sesButonu" onclick="sesKaydetVeGonder()">🎤 Ses Kaydet ve Gönder</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DEĞİŞKENLER VE AYARLAR ---
+        let botToken = "";
+        let chatId = "";
+        let sonUpdateId = 0;
+        let mesajDongusu;
+        let mediaRecorder; let sesVerileri = []; let kayitYapiliyor = false;
+
+        // Sayfa Yüklendiğinde Ayarları Kontrol Et
+        window.onload = () => {
+            const kayitliToken = localStorage.getItem('botToken');
+            const kayitliId = localStorage.getItem('chatId');
+
+            if (kayitliToken && kayitliId) {
+                botToken = kayitliToken;
+                chatId = kayitliId;
+                document.getElementById('tokenInput').value = botToken;
+                document.getElementById('chatIdInput').value = chatId;
+                sohbetiAc();
+            } else {
+                ayarlariAc();
+            }
+        };
+
+        // --- GÖRÜNÜM KONTROLLERİ (Ayarlar / Sohbet Arası Geçiş) ---
+        function ayarlariAc() {
+            document.getElementById('chatView').style.display = 'none';
+            document.getElementById('settingsView').style.display = 'flex';
+            durumuGuncelle('offline', 'Ayarlar Düzenleniyor...');
+            if (mesajDongusu) clearInterval(mesajDongusu); // Arka plan okumasını durdur
+        }
+
+        function sohbetiAc() {
+            document.getElementById('settingsView').style.display = 'none';
+            document.getElementById('chatView').style.display = 'flex';
+            durumuGuncelle('offline', 'Bağlanıyor...');
+            
+            // Ayarlar geçerliyse döngüyü başlat
+            mesajlariGetir();
+            mesajDongusu = setInterval(mesajlariGetir, 2500);
+        }
+
+        function ayarlariKaydet() {
+            const token = document.getElementById('tokenInput').value.trim();
+            const id = document.getElementById('chatIdInput').value.trim();
+
+            if (!token || !id) {
+                alert("Lütfen hem Token hem de Chat ID alanını doldurun!");
+                return;
+            }
+
+            botToken = token;
+            chatId = id;
+            localStorage.setItem('botToken', botToken);
+            localStorage.setItem('chatId', chatId);
+            
+            document.getElementById('chatBox').innerHTML = ''; // Eski mesajları temizle
+            sonUpdateId = 0;
+            sohbetiAc();
+        }
+
+        // --- YARDIMCI FONKSİYONLAR ---
+        function durumuGuncelle(durum, metin) {
+            document.getElementById('statusText').innerText = metin;
+            document.getElementById('statusDot').className = "status-dot " + durum;
+        }
+
+        function ekranaMesajEkle(kimden, metin, yon) {
+            const chatBox = document.getElementById('chatBox');
+            chatBox.innerHTML += `<div class="mesaj-wrapper ${yon}"><div class="isim">${kimden}</div><div class="mesaj">${metin}</div></div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // --- GELEN MESAJ VE DOSYALARI OKUMA ---
+        function mesajlariGetir() {
+            if(!botToken) return;
+
+            fetch(`https://api.telegram.org/bot${botToken}/getUpdates?offset=${sonUpdateId}`)
+            .then(res => res.json())
+            .then(sonuc => {
+                if (sonuc.ok) {
+                    sonuc.result.forEach(guncelleme => {
+                        if (guncelleme.message) {
+                            const kimden = guncelleme.message.from.first_name || "Kullanıcı";
+                            const msgId = guncelleme.message.message_id;
+
+                            if (guncelleme.message.text) {
+                                ekranaMesajEkle(kimden, guncelleme.message.text, 'gelen');
+                            } 
+                            else {
+                                let fileId = null;
+                                let dosyaTipi = "";
+                                let dosyaAdi = "Medya Dosyası";
+
+                                if (guncelleme.message.voice || guncelleme.message.audio) {
+                                    fileId = guncelleme.message.voice ? guncelleme.message.voice.file_id : guncelleme.message.audio.file_id;
+                                    dosyaTipi = "audio";
+                                } else if (guncelleme.message.photo) {
+                                    const fotolar = guncelleme.message.photo;
+                                    fileId = fotolar[fotolar.length - 1].file_id;
+                                    dosyaTipi = "photo";
+                                } else if (guncelleme.message.video) {
+                                    fileId = guncelleme.message.video.file_id;
+                                    dosyaTipi = "video";
+                                } else if (guncelleme.message.document) {
+                                    fileId = guncelleme.message.document.file_id;
+                                    dosyaAdi = guncelleme.message.document.file_name || "Belge";
+                                    dosyaTipi = "document";
+                                }
+
+                                if (fileId) {
+                                    const containerId = "media_box_" + msgId;
+                                    ekranaMesajEkle(kimden, `<div id="${containerId}">⏳ İndiriliyor...</div>`, 'gelen');
+
+                                    fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`)
+                                    .then(r => r.json())
+                                    .then(fileRes => {
+                                        if(fileRes.ok) {
+                                            const filePath = fileRes.result.file_path;
+                                            const medyaUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+                                            const container = document.getElementById(containerId);
+                                            
+                                            if(container) {
+                                                if (dosyaTipi === 'audio') {
+                                                    container.innerHTML = `<audio controls src="${medyaUrl}"></audio><br><a href="${medyaUrl}" target="_blank" class="medya-linki">🎵 İndir / Aç</a>`;
+                                                } else if (dosyaTipi === 'photo') {
+                                                    container.innerHTML = `<img src="${medyaUrl}" alt="Fotoğraf" class="medya-onizleme"><a href="${medyaUrl}" target="_blank" class="medya-linki">🖼️ Resmi Büyüt / İndir</a>`;
+                                                } else if (dosyaTipi === 'video') {
+                                                    container.innerHTML = `<video controls src="${medyaUrl}" class="medya-onizleme"></video><a href="${medyaUrl}" target="_blank" class="medya-linki">🎬 Videoyu İndir</a>`;
+                                                } else {
+                                                    container.innerHTML = `📄 <b>${dosyaAdi}</b><br><a href="${medyaUrl}" target="_blank" class="medya-linki">📥 Dosyayı İndir</a>`;
+                                                }
+                                            }
+                                        }
+                                    });
+                                } else {
+                                    ekranaMesajEkle(kimden, "📎 <i>[Desteklenmeyen Medya]</i>", 'gelen');
+                                }
+                            }
+                            sonUpdateId = guncelleme.update_id + 1;
+                        }
+                    });
+                    durumuGuncelle("online", "Canlı Bağlantı Aktif 🟢");
+                } else {
+                    durumuGuncelle("offline", "Bağlantı Hatası (Ayarları Kontrol Edin) 🔴");
+                }
+            }).catch(() => durumuGuncelle("offline", "İnternet Bağlantısı Yok 🔴"));
+        }
+
+        // --- GÖNDERİM İŞLEMLERİ ---
+        function telegramaGonder() {
+            const mesaj = document.getElementById('messageInput').value;
+            if (!mesaj.trim() || !botToken) return;
+            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: mesaj })
+            }).then(res => res.json()).then(sonuc => {
+                if (sonuc.ok) {
+                    ekranaMesajEkle("Sen (Web)", mesaj, 'giden');
+                    document.getElementById('messageInput').value = ''; 
+                } else {
+                    alert("Mesaj gönderilemedi: Ayarlarınızı kontrol edin.");
+                }
+            });
+        }
+
+        function enterIleGonder(e) { if (e.key === "Enter") telegramaGonder(); }
+
+        function dosyaSecVeGonder() {
+            const input = document.getElementById('fileInput');
+            const dosya = input.files[0];
+            if (!dosya || !botToken) return;
+
+            durumuGuncelle("offline", "Dosya yükleniyor... ⏳");
+            const formData = new FormData();
+            formData.append('chat_id', chatId);
+            formData.append('document', dosya);
+
+            fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(sonuc => {
+                if (sonuc.ok) {
+                    ekranaMesajEkle("Sen (Web)", `📄 <i>[Dosya Gönderildi: ${dosya.name}]</i>`, 'giden');
+                    durumuGuncelle("online", "Canlı Bağlantı Aktif 🟢");
+                } else alert("Hata: " + sonuc.description);
+                input.value = ''; 
+            }).catch(err => { alert("Yükleme hatası!"); input.value = ''; });
+        }
+
+        async function sesKaydetVeGonder() {
+            const btn = document.getElementById('sesButonu');
+            if (!kayitYapiliyor) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    sesVerileri = [];
+                    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) sesVerileri.push(e.data); };
+                    mediaRecorder.onstop = () => { telegramaSesGonder(new Blob(sesVerileri)); stream.getTracks().forEach(t => t.stop()); };
+                    mediaRecorder.start(); kayitYapiliyor = true;
+                    btn.innerText = "🛑 Kaydı Durdur ve Yükle"; btn.classList.add('kaydediyor');
+                } catch (e) { alert("Mikrofon izni verilmedi!"); }
+            } else {
+                mediaRecorder.stop(); kayitYapiliyor = false;
+                btn.innerText = "🎤 Ses Kaydet ve Gönder"; btn.classList.remove('kaydediyor');
+            }
+        }
+
+        function telegramaSesGonder(sesBlob) {
+            if(!botToken) return;
+            durumuGuncelle("offline", "Yükleniyor... ⏳");
+            const formData = new FormData();
+            formData.append('chat_id', chatId); formData.append('audio', sesBlob, 'ses_kaydi.webm'); 
+            fetch(`https://api.telegram.org/bot${botToken}/sendAudio`, { method: 'POST', body: formData })
+            .then(res => res.json()).then(sonuc => {
+                if (sonuc.ok) { ekranaMesajEkle("Sen (Web)", "🎤 <i>[Sesli Mesaj Gönderildi]</i>", 'giden'); durumuGuncelle("online", "Canlı Bağlantı Aktif 🟢"); } 
+                else alert("Hata: " + sonuc.description);
+            }).catch(() => alert("Yükleme başarısız!"));
+        }
+    </script>
+</body>
+</html>
